@@ -104,16 +104,22 @@ jobs:
       - name: Create Initrd (Hyper-V Safe)
         run: |
           cd WSL2-Linux-Kernel
+          
           KVER=$(ls /tmp/wsl_out/lib/modules | head -n 1)
           
-          sudo dracut --verbose --force \
-            --kmoddir /tmp/wsl_out/lib/modules \
-            --kver $KVER \
-            /tmp/wsl_out/initrd.img \
-            --force-drivers "hv_vmbus hv_sock hv_netvsc" \
-            --no-hostonly \
-            --install "lsmod modprobe insmod"
+          if [ -z "$KVER" ]; then
+              echo "Lỗi: Không tìm thấy thư mục module nào trong /tmp/wsl_out/lib/modules!"
+              exit 1
+          fi
+          
+          cd /tmp/wsl_out
 
+          dracut --verbose --force \
+              --kver "$KVER" \
+              --add-drivers "hv_vmbus hv_sock hv_netvsc" \
+              --no-hostonly \
+              --install "lsmod modprobe insmod" \
+              initrd.img
       - name: Upload Final Artifact
         if: success()
         uses: actions/upload-artifact@v4
