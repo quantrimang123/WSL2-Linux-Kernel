@@ -18,8 +18,12 @@ jobs:
       - name: Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          packages=(git gcc base-devel bc yay bison flex pahole libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
+          packages=(git gcc base-devel bc bison flex pahole libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
           for pkg in "${packages[@]}"; do pacman -S --noconfirm "$pkg"; done
+          
+          git clone https://aur.archlinux.org/yay.git
+          cd yay
+          makepkg -si --noconfirm --asroot
           yay -S --noconfirm gcc13
       - name: Setup ccache
         run: |
