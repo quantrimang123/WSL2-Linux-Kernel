@@ -18,7 +18,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          packages=(git base-devel bc bison flex pahole libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
+          packages=(git gcc base-devel bc bison flex pahole libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
           for pkg in "${packages[@]}"; do pacman -S --noconfirm "$pkg"; done
 
       - name: Setup ccache
@@ -42,10 +42,15 @@ jobs:
           echo "Phiên bản Kernel hiện tại là:"
           make kernelversion
           
-          export CC="clang"
-          export CXX="clang++"
-          export LLVM=1
-          export LLVM_IAS=1
+          export CC="gcc"
+          export CXX="g++"
+          export LD="ld.bfd"
+          export AR="gcc-ar"
+          export NM="gcc-nm"
+          export RANLIB="gcc-ranlib"
+          
+          unset LLVM
+          unset LLVM_IAS
           
           make mrproper
           cp Microsoft/config-wsl .config
@@ -67,8 +72,7 @@ jobs:
           make olddefconfig
           make olddefconfig
           
-          export KCFLAGS="-Wno-incompatible-pointer-types -Wno-discarded-qualifiers"
-          make -j$(nproc) CC=clang LLVM=1 LLVM_IAS=1 WERROR=0 KBUILD_VERBOSE=0
+          make -j$(nproc) 
           
       - name: Process and Package All Artifacts
         run: |
