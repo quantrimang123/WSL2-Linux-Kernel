@@ -30,7 +30,7 @@ jobs:
             cd yay
             makepkg -si --noconfirm
           '
-          runuser -u builder -- yay -S --noconfirm --mflags "--skipinteg" --removemake --cleanafter gcc13
+          runuser -u builder -- yay -S --noconfirm --mflags "--skipinteg" --removemake --cleanafter gcc13-bin
          
       - name: Setup ccache
         run: |
