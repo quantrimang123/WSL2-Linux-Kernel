@@ -17,15 +17,21 @@ jobs:
           
       - name: Install Dependencies
         run: |
-          sed -i 's/check_root/#check_root/g' /etc/makepkg.conf
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          
           pacman -Syu --noconfirm
           packages=(git gcc base-devel bc bison flex pahole libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
           for pkg in "${packages[@]}"; do pacman -S --noconfirm "$pkg"; done
           
-          git clone https://aur.archlinux.org/yay.git
-          cd yay
-          makepkg -si --noconfirm 
-          yay -S --noconfirm gcc13
+          runuser -u builder -- bash -c '
+            cd /home/builder
+            git clone https://aur.archlinux.org/yay.git
+            cd yay
+            makepkg -si --noconfirm
+          '
+          runuser -u builder -- yay -S --noconfirm --mflags "--skipinteg" --removemake --cleanafter gcc13
+         
       - name: Setup ccache
         run: |
           mkdir -p /tmp/ccache
@@ -49,13 +55,13 @@ jobs:
           
           export CC=gcc-13
           export CXX=g++-13
-          export LD="ld.bfd"
           export AR="gcc-ar"
           export NM="gcc-nm"
           export RANLIB="gcc-ranlib"
           
           unset LLVM
           unset LLVM_IAS
+          unset LD
           
           make mrproper
           cp Microsoft/config-wsl .config
@@ -74,7 +80,6 @@ jobs:
           
           ./scripts/kconfig/merge_config.sh -m .config $GITHUB_WORKSPACE/my_config_folder/my_config.cfg
           
-          make olddefconfig
           make olddefconfig
           
           make CC="ccache gcc-13" CXX="ccache g++-13" -j$(nproc)
