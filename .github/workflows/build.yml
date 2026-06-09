@@ -67,8 +67,8 @@ jobs:
           make olddefconfig
           make olddefconfig
           
-          export KCFLAGS="-Wno-incompatible-pointer-types-discards-qualifiers"
-          make -j$(nproc) CC=clang LLVM=1 LLVM_IAS=1 WERROR=0
+          export KCFLAGS="-Wno-incompatible-pointer-types -Wno-discarded-qualifiers"
+          make -j$(nproc) CC=clang LLVM=1 LLVM_IAS=1 WERROR=0 KBUILD_VERBOSE=0
           
       - name: Process and Package All Artifacts
         run: |
