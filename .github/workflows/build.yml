@@ -23,7 +23,7 @@ jobs:
           
           git clone https://aur.archlinux.org/yay.git
           cd yay
-          makepkg -si --noconfirm --asroot
+          fakeroot makepkg -si --noconfirm 
           yay -S --noconfirm gcc13
       - name: Setup ccache
         run: |
