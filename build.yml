@@ -1,0 +1,128 @@
+name: Build Custom WSL2 Kernel
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    timeout-minutes: 333
+    steps:
+      - name: Checkout My Config Repo
+        uses: actions/checkout@v4
+        with:
+          repository: quantrimang123/WSL2-Linux-Kernel
+          path: my_config_folder 
+          token: ${{ secrets.GH_PAT }}
+          
+      - name: Install Dependencies
+        run: |
+          pacman -Syu --noconfirm
+          packages=(git base-devel bc bison flex pahole libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
+          for pkg in "${packages[@]}"; do pacman -S --noconfirm "$pkg"; done
+
+      - name: Setup ccache
+        run: |
+          mkdir -p /tmp/ccache
+          echo "CCACHE_DIR=/tmp/ccache" >> $GITHUB_ENV
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/ccache
+          key: ${{ runner.os }}-kernel-k501lb-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-kernel-k501lb-
+
+      - name: Build Kernel
+        run: |
+          git clone --depth=1 -b linux-msft-wsl-6.6.y https://github.com/microsoft/WSL2-Linux-Kernel.git
+          
+          cd WSL2-Linux-Kernel
+          
+          echo "Phiên bản Kernel hiện tại là:"
+          make kernelversion
+          
+          export CC="clang"
+          export CXX="clang++"
+          export LLVM=1
+          export LLVM_IAS=1
+          
+          make mrproper
+          cp Microsoft/config-wsl .config
+          
+          if [ ! -f .config ]; then
+              echo ".config không tồn tại, kiểm tra lại lệnh cấu hình!"
+              exit 1
+          fi
+          
+          if [ -d "Microsoft" ]; then
+              make KCONFIG_CONFIG=Microsoft/config-wsl kvm_guest.config
+              cp Microsoft/config-wsl .config
+          fi
+          
+          echo "Dung lượng đĩa trước khi build:" && df -h
+          
+          ./scripts/kconfig/merge_config.sh -m .config $GITHUB_WORKSPACE/my_config_folder/my_config.cfg
+          
+          make olddefconfig
+          make olddefconfig
+          make -j$(nproc) CC=clang LLVM=1 LLVM_IAS=1
+          
+      - name: Process and Package All Artifacts
+        run: |
+          cd WSL2-Linux-Kernel
+          set -e
+          mkdir -p /tmp/wsl_out
+          cp arch/x86/boot/bzImage /tmp/wsl_out/bzImage
+          cp vmlinux /tmp/wsl_out/vmlinux
+          cp System.map /tmp/wsl_out/System.map
+          cp .config /tmp/wsl_out/config.bak
+
+          mkdir -p /tmp/wsl_out/lib/modules
+          make INSTALL_MOD_PATH=/tmp/wsl_out modules_install
+          
+          if [ -d "firmware" ]; then
+              mkdir -p /tmp/wsl_out/lib/firmware
+              cp -r firmware/* /tmp/wsl_out/lib/firmware/
+          fi
+
+          find /tmp/wsl_out/lib/modules -name "*.ko" -print0 | xargs -0 -P $(nproc) -I {} strip --strip-debug {}
+
+          if [ -d "/tmp/wsl_out/lib" ]; then
+              cd /tmp/wsl_out
+              tar -cf - lib/ | pigz -9 -p$(nproc) > modules_firmware.tar.gz
+          fi
+          
+          pigz -9 -p$(nproc) /tmp/wsl_out/vmlinux
+          
+          find /tmp/wsl_out -name "build" -type l -delete
+          find /tmp/wsl_out -name "source" -type l -delete
+
+          df -h
+          ls -lh /tmp/wsl_out/
+          
+     - name: Create Initrd (Hyper-V Safe)
+       run: |
+          cd WSL2-Linux-Kernel
+          KVER=$(ls /tmp/wsl_out/lib/modules | head -n 1)
+          
+          sudo dracut --verbose --force \
+            --kmoddir /tmp/wsl_out/lib/modules \
+            --kver $KVER \
+            /tmp/wsl_out/initrd.img \
+            --force-drivers "hv_vmbus hv_sock hv_netvsc" \
+            --no-hostonly \
+            --install "lsmod modprobe insmod"
+     - name: Upload Final Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WSL2-Kernel-6.6-Custom
+          path: |
+            /tmp/wsl_out/bzImage
+            /tmp/wsl_out/initrd.img
+            /tmp/wsl_out/modules_firmware.tar.gz
+            /tmp/wsl_out/System.map
+            /tmp/wsl_out/vmlinux.gz
+            /tmp/wsl_out/config.bak
+          retention-days: 67
