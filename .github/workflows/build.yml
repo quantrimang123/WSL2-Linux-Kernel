@@ -72,7 +72,7 @@ jobs:
           make olddefconfig
           make olddefconfig
           
-          make -j$(nproc) 
+          make -j$(nproc) V=1
           
       - name: Process and Package All Artifacts
         run: |
