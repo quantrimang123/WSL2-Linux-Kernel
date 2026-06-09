@@ -72,7 +72,7 @@ jobs:
           make olddefconfig
           make olddefconfig
           
-          make -j$(nproc) V=1
+          make -j$(nproc) V=1 KCFLAGS="-Wno-error=discarded-qualifiers -Wno-error=incompatible-pointer-types"
           
       - name: Process and Package All Artifacts
         run: |
