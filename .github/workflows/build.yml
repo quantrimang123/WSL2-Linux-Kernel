@@ -90,13 +90,11 @@ jobs:
           fi
           
           ./scripts/kconfig/merge_config.sh -m .config $GITHUB_WORKSPACE/my_config_folder/my_config.cfg
-          ./scripts/config --enable CONFIG_DEBUG_INFO
           ./scripts/config --enable CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
-          ./scripts/config --enable CONFIG_DEBUG_INFO_BTF
           ./scripts/config --disable CONFIG_GCC_PLUGIN_RANDSTRUCT
-          ./scripts/config --disable CONFIG_DEBUG_INFO_BTF
-          ./scripts/config --disable CONFIG_DEBUG_INFO_BTF_MODULES
-          ./scripts/config --disable CONFIG_BPF_SYSCALL
+          ./scripts/config --enable CONFIG_DEBUG_INFO_BTF
+          ./scripts/config --enable CONFIG_DEBUG_INFO_BTF_MODULES
+          ./scripts/config --enable CONFIG_DEBUG_INFO
 
           make olddefconfig
           make prepare
