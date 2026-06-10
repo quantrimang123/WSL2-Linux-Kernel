@@ -21,7 +21,7 @@ jobs:
         run: |
 
           pacman -Syu --noconfirm
-          packages=(git gcc base-devel bc bison flex pahole dwarves libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
+          packages=(git gcc base-devel bc bison flex pahole libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
           for pkg in "${packages[@]}"; do pacman -S --noconfirm "$pkg"; done
           
           curl -O https://archive.archlinux.org/packages/g/gcc15/gcc15-15.2.1+r934+gbcd3e3ff5aa7-1-x86_64.pkg.tar.zst
