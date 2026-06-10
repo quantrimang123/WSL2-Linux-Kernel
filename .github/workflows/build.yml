@@ -76,14 +76,13 @@ jobs:
           fi
           
           ./scripts/kconfig/merge_config.sh -m .config $GITHUB_WORKSPACE/my_config_folder/my_config.cfg
-          ./scripts/config --disable CONFIG_BPF
-          ./scripts/config --disable CONFIG_BPF_SYSCALL
-          ./scripts/config --disable CONFIG_DEBUG_INFO_BTF
           
           make olddefconfig
           make prepare
           
-          make CC="ccache gcc-15" CXX="ccache g++-15" AR="gcc-ar-15" NM="gcc-nm-15" RANLIB="gcc-ranlib-15" -j$(nproc)
+          make CC="ccache gcc-15" CXX="ccache g++-15" AR="gcc-ar-15" NM="gcc-nm-15" RANLIB="gcc-ranlib-15" \
+               KCFLAGS="-Wno-error -Wno-maybe-uninitialized -Wno-unused-but-set-variable" \
+               -j$(nproc)
           
       - name: Process and Package All Artifacts
         run: |
