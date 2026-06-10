@@ -26,7 +26,6 @@ jobs:
           
           mkdir -p /opt/gcc-13
           curl -L https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--glibc--bleeding-edge-2023.08-1.tar.bz2 | tar -xjC /opt/gcc-13 --strip-components=1
-          export PATH="/opt/gcc-13/bin:$PATH"
           
           echo "Phiên bản gcc là:"
           x86_64-buildroot-linux-gnu-gcc --version
@@ -55,11 +54,14 @@ jobs:
           echo "Phiên bản Kernel hiện tại là:"
           make kernelversion
           
-          export CC="ccache gcc-15"
-          export CXX="ccache g++-15"
-          export AR="gcc-ar-15"
-          export NM="gcc-nm-15"
-          export RANLIB="gcc-ranlib-15"
+          export PATH="/opt/gcc-13/bin:$PATH"
+          
+          export CROSS_COMPILE="x86_64-buildroot-linux-gnu-"
+          export CC="ccache ${CROSS_COMPILE}gcc"
+          export CXX="ccache ${CROSS_COMPILE}g++"
+          export AR="${CROSS_COMPILE}ar"
+          export NM="${CROSS_COMPILE}nm"
+          export RANLIB="${CROSS_COMPILE}ranlib"
           
           unset LLVM
           unset LLVM_IAS
@@ -90,12 +92,7 @@ jobs:
           make olddefconfig
           make prepare
           
-          make CC="ccache gcc-15" \
-               CXX="ccache g++-15" \
-               AR="gcc-ar-15" \
-               NM="gcc-nm-15" \
-               RANLIB="gcc-ranlib-15" \
-               -j$(nproc)
+          make ARCH=x86_64 -j$(nproc)
 
 
       - name: Process and Package All Artifacts
