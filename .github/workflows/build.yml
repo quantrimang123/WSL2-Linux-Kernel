@@ -31,6 +31,25 @@ jobs:
           gcc-15 --version
           echo "Phiên bản pahole là :"
           pahole --version
+          
+          find . -type f \( -name "Makefile*" -o -name "Kbuild*" \) -exec sed -i 's/-Werror//g' {} +
+
+          echo "--- Đang càn quét và xóa bỏ -Werror trong Makefile/Kbuild ---"
+          find . -type f \( -name "Makefile*" -o -name "Kbuild*" -o -name "*.mk" -o -name "*.config" \) \
+          -exec perl -pi -e 's/-Werror//g' {} 
+
+          echo "--- Thiết lập rào chắn Compiler Flags ---"
+          export KCFLAGS="-w -fpermissive -Wno-error -Wno-discarded-qualifiers -Wno-maybe-uninitialized -Wno-unused-but-set-variable -Wno-return-type"
+          export KBUILD_CFLAGS="-w -fpermissive -Wno-error"
+          export WERROR=0
+          export HOSTCFLAGS="-w -Wno-error"
+          export USERCFLAGS="-w -Wno-error"
+          export EXTRA_CFLAGS="-w -fpermissive -Wno-error"
+          
+          find tools/ -name Makefile -exec sed -i 's/-Werror//g' {} +
+          find tools/ -name "libbpf.c" -exec sed -i "s/next_path = strchr(s, ':')/next_path = (char *)strchr(s, ':')/g" {} +
+          find tools/ -type f -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
+          
       - name: Setup ccache
         run: |
           export PATH="/usr/lib/ccache/bin:$PATH"
@@ -49,6 +68,11 @@ jobs:
           git clone --depth=1 -b linux-msft-wsl-6.6.y https://github.com/microsoft/WSL2-Linux-Kernel.git
           
           cd WSL2-Linux-Kernel
+          
+          echo "--- Đang tinh chỉnh cấu hình Kernel để triệt tiêu kiểm tra gắt gao ---"
+          ./scripts/config --disable CONFIG_WERROR
+          ./scripts/config --disable CONFIG_GCC_PLUGIN_RANDSTRUCT
+          ./scripts/config --disable CONFIG_DEBUG_INFO_BTF
           
           echo "Phiên bản Kernel hiện tại là:"
           make kernelversion
@@ -85,34 +109,16 @@ jobs:
           make olddefconfig
           make prepare
           
-          find . -type f \( -name "Makefile*" -o -name "Kbuild*" \) -exec sed -i 's/-Werror//g' {} +
-
-          echo "--- Đang càn quét và xóa bỏ -Werror trong Makefile/Kbuild ---"
-          find . -type f \( -name "Makefile*" -o -name "Kbuild*" -o -name "*.mk" -o -name "*.config" \) \
-          -exec perl -pi -e 's/-Werror//g' {} 
 
           echo "--- Đang tinh chỉnh cấu hình Kernel để triệt tiêu kiểm tra gắt gao ---"
           ./scripts/config --disable CONFIG_WERROR
           ./scripts/config --disable CONFIG_GCC_PLUGIN_RANDSTRUCT
           ./scripts/config --disable CONFIG_DEBUG_INFO_BTF
 
-          echo "--- Thiết lập rào chắn Compiler Flags ---"
-          export KCFLAGS="-w -fpermissive -Wno-error -Wno-discarded-qualifiers -Wno-maybe-uninitialized -Wno-unused-but-set-variable -Wno-return-type"
-          export KBUILD_CFLAGS="-w -fpermissive -Wno-error"
-          export WERROR=0
-          export HOSTCFLAGS="-w -Wno-error"
-          export USERCFLAGS="-w -Wno-error"
-          export EXTRA_CFLAGS="-w -fpermissive -Wno-error"
-          
           unset LLVM
           unset LLVM_IAS
           unset LD
           
-          find tools/ -name Makefile -exec sed -i 's/-Werror//g' {} +
-          find tools/ -name "libbpf.c" -exec sed -i "s/next_path = strchr(s, ':')/next_path = (char *)strchr(s, ':')/g" {} +
-          find tools/ -type f -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
-          
-          echo "--- Hệ thống đã sẵn sàng. Bắt đầu build với quyền cực đoan! ---" 
           make CC="ccache gcc-15" \
                CXX="ccache g++-15" \
                AR="gcc-ar-15" \
