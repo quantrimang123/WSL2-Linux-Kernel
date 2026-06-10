@@ -97,17 +97,29 @@ jobs:
           ./scripts/config --disable CONFIG_DEBUG_INFO_BTF
 
           echo "--- Thiết lập rào chắn Compiler Flags ---"
-          export KCFLAGS="-w -fpermissive -Wno-discarded-qualifiers -Wno-maybe-uninitialized -Wno-unused-but-set-variable -Wno-return-type"
-          export KBUILD_CFLAGS="-w -fpermissive"
-          export EXTRA_CFLAGS="-w -fpermissive"
+          export KCFLAGS="-w -fpermissive -Wno-error -Wno-discarded-qualifiers -Wno-maybe-uninitialized -Wno-unused-but-set-variable -Wno-return-type"
+          export KBUILD_CFLAGS="-w -fpermissive -Wno-error"
+          export WERROR=0
+          export HOSTCFLAGS="-w -Wno-error"
+          export USERCFLAGS="-w -Wno-error"
+          export EXTRA_CFLAGS="-w -fpermissive -Wno-error"
           
           unset LLVM
           unset LLVM_IAS
           unset LD
           
           echo "--- Hệ thống đã sẵn sàng. Bắt đầu build với quyền cực đoan! ---" 
-          make CC="ccache gcc-15" CXX="ccache g++-15" AR="gcc-ar-15" NM="gcc-nm-15" RANLIB="gcc-ranlib-15" \
-               KCFLAGS="-Wno-error -Wno-maybe-uninitialized -Wno-unused-but-set-variable -Wno-discarded-qualifiers" \
+          make CC="ccache gcc-15" \
+               CXX="ccache g++-15" \
+               AR="gcc-ar-15" \
+               NM="gcc-nm-15" \
+               RANLIB="gcc-ranlib-15" \
+               WERROR=0 \
+               KCFLAGS="$KCFLAGS" \
+               KBUILD_CFLAGS="$KBUILD_CFLAGS" \
+               HOSTCFLAGS="$HOSTCFLAGS" \
+               KBUILD_HOSTCFLAGS="$HOSTCFLAGS" \
+               USERCFLAGS="$USERCFLAGS" \
                -j$(nproc)
 
       - name: Process and Package All Artifacts
