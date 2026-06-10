@@ -26,6 +26,7 @@ jobs:
           
           mkdir -p /opt/gcc-13
           curl -L https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--glibc--bleeding-edge-2023.08-1.tar.bz2 | tar -xjC /opt/gcc-13 --strip-components=1
+          echo "/opt/gcc-13/bin" >> $GITHUB_PATH
           
           echo "Phiên bản gcc là:"
           x86_64-buildroot-linux-gnu-gcc --version
@@ -55,6 +56,7 @@ jobs:
           make kernelversion
           
           export PATH="/opt/gcc-13/bin:$PATH"
+          export CROSS_COMPILE=x86_64-buildroot-linux-gnu-
           
           export CROSS_COMPILE="x86_64-buildroot-linux-gnu-"
           export CC="ccache ${CROSS_COMPILE}gcc"
@@ -92,9 +94,11 @@ jobs:
           make olddefconfig
           make prepare
           
-          make ARCH=x86_64 -j$(nproc)
-
-
+          make ARCH=x86_64 \
+               CROSS_COMPILE=$CROSS_COMPILE \
+               CC="ccache ${CROSS_COMPILE}gcc" \
+               HOSTCC=gcc \
+               -j$(nproc)
       - name: Process and Package All Artifacts
         run: |
           cd WSL2-Linux-Kernel
