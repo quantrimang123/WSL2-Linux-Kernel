@@ -27,6 +27,13 @@ jobs:
           mkdir -p /opt/gcc-13
           curl -L https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--glibc--bleeding-edge-2023.08-1.tar.bz2 | tar -xjC /opt/gcc-13 --strip-components=1
           echo "/opt/gcc-13/bin" >> $GITHUB_PATH
+          export PATH="/opt/gcc-13/bin:$PATH"
+          
+          if [ ! -f /opt/gcc-13/bin/x86_64-buildroot-linux-gnu-gcc ]; then
+              echo "LỖI: Không tìm thấy compiler trong /opt/gcc-13/bin!"
+              ls -R /opt/gcc-13/bin
+              exit 1
+          fi
           
           echo "Phiên bản gcc là:"
           x86_64-buildroot-linux-gnu-gcc --version
