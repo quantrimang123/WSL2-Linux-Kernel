@@ -109,7 +109,9 @@ jobs:
           unset LD
           
           find tools/ -name Makefile -exec sed -i 's/-Werror//g' {} +
-
+          find tools/ -name "libbpf.c" -exec sed -i "s/next_path = strchr(s, ':')/next_path = (char *)strchr(s, ':')/g" {} +
+          find tools/ -type f -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
+          
           echo "--- Hệ thống đã sẵn sàng. Bắt đầu build với quyền cực đoan! ---" 
           make CC="ccache gcc-15" \
                CXX="ccache g++-15" \
