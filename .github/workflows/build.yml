@@ -21,7 +21,7 @@ jobs:
         run: |
 
           pacman -Syu --noconfirm
-          packages=(git gcc base-devel bc bison flex pahole libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
+          packages=(git gcc base-devel bc bison flex pahole dwarves libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
           for pkg in "${packages[@]}"; do pacman -S --noconfirm "$pkg"; done
           
           curl -O https://archive.archlinux.org/packages/g/gcc15/gcc15-15.2.1+r934+gbcd3e3ff5aa7-1-x86_64.pkg.tar.zst
@@ -76,6 +76,10 @@ jobs:
           fi
           
           ./scripts/kconfig/merge_config.sh -m .config $GITHUB_WORKSPACE/my_config_folder/my_config.cfg
+          ./scripts/config --enable CONFIG_DEBUG_INFO
+          ./scripts/config --enable CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
+          ./scripts/config --enable CONFIG_DEBUG_INFO_BTF
+          ./scripts/config --disable CONFIG_GCC_PLUGIN_RANDSTRUCT
           
           make olddefconfig
           make prepare
