@@ -29,7 +29,8 @@ jobs:
           
           echo "Phiên bản gcc là:"
           gcc-15 --version
-          
+          echo "Phiên bản pahole là :"
+          pahole --version
       - name: Setup ccache
         run: |
           export PATH="/usr/lib/ccache/bin:$PATH"
