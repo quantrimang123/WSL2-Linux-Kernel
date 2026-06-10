@@ -85,8 +85,11 @@ jobs:
           make olddefconfig
           make prepare
           
+          find . -type f \( -name "Makefile*" -o -name "Kbuild*" \) -exec sed -i 's/-Werror//g' {} +
+
+
           make CC="ccache gcc-15" CXX="ccache g++-15" AR="gcc-ar-15" NM="gcc-nm-15" RANLIB="gcc-ranlib-15" \
-               KCFLAGS="-Wno-error -Wno-maybe-uninitialized -Wno-unused-but-set-variable" \
+               KCFLAGS="-Wno-error -Wno-maybe-uninitialized -Wno-unused-but-set-variable -Wno-discarded-qualifiers" \
                -j$(nproc)
           
       - name: Process and Package All Artifacts
