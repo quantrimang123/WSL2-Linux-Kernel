@@ -76,6 +76,9 @@ jobs:
           fi
           
           ./scripts/kconfig/merge_config.sh -m .config $GITHUB_WORKSPACE/my_config_folder/my_config.cfg
+          ./scripts/config --disable CONFIG_BPF
+          ./scripts/config --disable CONFIG_BPF_SYSCALL
+          ./scripts/config --disable CONFIG_DEBUG_INFO_BTF
           
           make olddefconfig
           make prepare
