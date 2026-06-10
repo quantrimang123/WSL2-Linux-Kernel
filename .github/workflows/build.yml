@@ -59,6 +59,9 @@ jobs:
           
           cd WSL2-Linux-Kernel
           
+          echo "Patching libbpf for GCC 13..."
+          sed -i 's/next_path = strchr(s, \x27:\x27);/next_path = (char *)strchr(s, \x27:\x27);/' tools/lib/bpf/libbpf.c
+          
           echo "Phiên bản Kernel hiện tại là:"
           make kernelversion
           
@@ -71,7 +74,7 @@ jobs:
           export AR="${CROSS_COMPILE}ar"
           export NM="${CROSS_COMPILE}nm"
           export RANLIB="${CROSS_COMPILE}ranlib"
-          
+          export PAHOLE_FLAGS="--btf_features=encode_force,var,float,enum64"
           unset LLVM
           unset LLVM_IAS
           unset LD
@@ -101,8 +104,10 @@ jobs:
           
           make ARCH=x86_64 \
                CROSS_COMPILE=$CROSS_COMPILE \
-               CC="ccache ${CROSS_COMPILE}gcc" \
+               CC="$CC" \
                HOSTCC=gcc \
+               HOSTCFLAGS="-Wno-error=discarded-qualifiers -Wno-error=maybe-uninitialized" \
+               KCFLAGS="-Wno-error=discarded-qualifiers" \
                -j$(nproc)
       - name: Process and Package All Artifacts
         run: |
