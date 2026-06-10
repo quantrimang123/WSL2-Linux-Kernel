@@ -51,29 +51,6 @@ jobs:
           
           cd WSL2-Linux-Kernel
           
-          find . -type f \( -name "Makefile*" -o -name "Kbuild*" \) -exec sed -i 's/-Werror//g' {} +
-
-          echo "--- Đang càn quét và xóa bỏ -Werror trong Makefile/Kbuild ---"
-          find . -type f \( -name "Makefile*" -o -name "Kbuild*" -o -name "*.mk" -o -name "*.config" \) \
-          -exec perl -pi -e 's/-Werror//g' {} 
-
-          echo "--- Thiết lập rào chắn Compiler Flags ---"
-          export KCFLAGS="-w -fpermissive -Wno-error -Wno-discarded-qualifiers -Wno-maybe-uninitialized -Wno-unused-but-set-variable -Wno-return-type"
-          export KBUILD_CFLAGS="-w -fpermissive -Wno-error"
-          export WERROR=0
-          export HOSTCFLAGS="-w -Wno-error"
-          export USERCFLAGS="-w -Wno-error"
-          export EXTRA_CFLAGS="-w -fpermissive -Wno-error"
-          
-          find tools/ -name Makefile -exec sed -i 's/-Werror//g' {} +
-          find tools/ -name "libbpf.c" -exec sed -i "s/next_path = strchr(s, ':')/next_path = (char *)strchr(s, ':')/g" {} +
-          find tools/ -type f -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
-          
-          echo "--- Đang tinh chỉnh cấu hình Kernel để triệt tiêu kiểm tra gắt gao ---"
-          ./scripts/config --disable CONFIG_WERROR
-          ./scripts/config --disable CONFIG_GCC_PLUGIN_RANDSTRUCT
-          ./scripts/config --disable CONFIG_DEBUG_INFO_BTF
-          
           echo "Phiên bản Kernel hiện tại là:"
           make kernelversion
           
@@ -105,30 +82,18 @@ jobs:
           ./scripts/config --enable CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
           ./scripts/config --enable CONFIG_DEBUG_INFO_BTF
           ./scripts/config --disable CONFIG_GCC_PLUGIN_RANDSTRUCT
-          
+          ./scripts/config --disable CONFIG_DEBUG_INFO_BTF
+          ./scripts/config --disable CONFIG_DEBUG_INFO_BTF_MODULES
+          ./scripts/config --disable CONFIG_BPF_SYSCALL
+
           make olddefconfig
           make prepare
-          
-
-          echo "--- Đang tinh chỉnh cấu hình Kernel để triệt tiêu kiểm tra gắt gao ---"
-          ./scripts/config --disable CONFIG_WERROR
-          ./scripts/config --disable CONFIG_GCC_PLUGIN_RANDSTRUCT
-          ./scripts/config --disable CONFIG_DEBUG_INFO_BTF
-
-          unset LLVM
-          unset LLVM_IAS
-          unset LD
           
           make CC="ccache gcc-15" \
                CXX="ccache g++-15" \
                AR="gcc-ar-15" \
                NM="gcc-nm-15" \
                RANLIB="gcc-ranlib-15" \
-               WERROR=0 \
-               KCFLAGS="$KCFLAGS" \
-               HOSTCFLAGS="$HOSTCFLAGS" \
-               USERCFLAGS="$USERCFLAGS" \
-               EXTRA_CFLAGS="-w -Wno-error" \
                -j$(nproc)
 
 
