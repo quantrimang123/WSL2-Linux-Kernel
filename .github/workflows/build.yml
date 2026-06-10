@@ -7,6 +7,8 @@ jobs:
     container:
       image: archlinux:latest
     timeout-minutes: 333
+    env:
+      CCACHE_DIR: /tmp/ccache
     steps:
       - name: Checkout My Config Repo
         uses: actions/checkout@v4
@@ -17,23 +19,21 @@ jobs:
           
       - name: Install Dependencies
         run: |
-          useradd -m builder
-          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-          
+
           pacman -Syu --noconfirm
           packages=(git gcc base-devel bc bison flex pahole libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
           for pkg in "${packages[@]}"; do pacman -S --noconfirm "$pkg"; done
           
-          runuser -u builder -- bash -c '
-            cd /home/builder
-            git clone https://aur.archlinux.org/yay.git
-            cd yay
-            makepkg -si --noconfirm
-          '
-          runuser -u builder -- yay -S --noconfirm --mflags "--skipinteg" --removemake --cleanafter gcc13-bin
-         
+          curl -O https://archive.archlinux.org/packages/g/gcc15/gcc15-15.2.1+r934+gbcd3e3ff5aa7-1-x86_64.pkg.tar.zst
+          pacman -U --noconfirm gcc15-15.2.1+r934+gbcd3e3ff5aa7-1-x86_64.pkg.tar.zst
+          
+          echo "Phiên bản gcc là:"
+          gcc-15 --version
+          
       - name: Setup ccache
         run: |
+          export PATH="/usr/lib/ccache/bin:$PATH"
+          ccache --version
           mkdir -p /tmp/ccache
           echo "CCACHE_DIR=/tmp/ccache" >> $GITHUB_ENV
 
@@ -43,7 +43,6 @@ jobs:
           path: /tmp/ccache
           key: ${{ runner.os }}-kernel-k501lb-${{ github.sha }}
           restore-keys: ${{ runner.os }}-kernel-k501lb-
-
       - name: Build Kernel
         run: |
           git clone --depth=1 -b linux-msft-wsl-6.6.y https://github.com/microsoft/WSL2-Linux-Kernel.git
@@ -53,11 +52,11 @@ jobs:
           echo "Phiên bản Kernel hiện tại là:"
           make kernelversion
           
-          export CC=gcc-13
-          export CXX=g++-13
-          export AR="gcc-ar"
-          export NM="gcc-nm"
-          export RANLIB="gcc-ranlib"
+          export CC="ccache gcc-15"
+          export CXX="ccache g++-15"
+          export AR="gcc-ar-15"
+          export NM="gcc-nm-15"
+          export RANLIB="gcc-ranlib-15"
           
           unset LLVM
           unset LLVM_IAS
@@ -76,13 +75,12 @@ jobs:
               cp Microsoft/config-wsl .config
           fi
           
-          echo "Dung lượng đĩa trước khi build:" && df -h
-          
           ./scripts/kconfig/merge_config.sh -m .config $GITHUB_WORKSPACE/my_config_folder/my_config.cfg
           
           make olddefconfig
+          make prepare
           
-          make CC="ccache gcc-13" CXX="ccache g++-13" -j$(nproc)
+          make CC="ccache gcc-15" CXX="ccache g++-15" AR="gcc-ar-15" NM="gcc-nm-15" RANLIB="gcc-ranlib-15" -j$(nproc)
           
       - name: Process and Package All Artifacts
         run: |
@@ -119,23 +117,28 @@ jobs:
           
       - name: Create Initrd (Hyper-V Safe)
         run: |
-          cd WSL2-Linux-Kernel
-          
-          KVER=$(ls /tmp/wsl_out/lib/modules | head -n 1)
+          KVER=$(cd /tmp/wsl_out/lib/modules && ls -d */ | cut -f1 -d'/')
           
           if [ -z "$KVER" ]; then
-              echo "Lỗi: Không tìm thấy thư mục module nào trong /tmp/wsl_out/lib/modules!"
+              echo "Lỗi: Không tìm thấy thư mục module nào!"
               exit 1
           fi
           
+          HV_DRIVERS=$(find /tmp/wsl_out/lib/modules/"$KVER"/kernel/drivers/hv/ -name "*.ko" -exec basename {} .ko \; 2>/dev/null | tr '\n' ' ')
+          
           cd /tmp/wsl_out
-
+                    
           dracut --verbose --force \
-              --kver "$KVER" \
-              --add-drivers "hv_vmbus hv_sock hv_netvsc" \
-              --no-hostonly \
-              --install "lsmod modprobe insmod" \
-              initrd.img
+            --kver "$KVER" \
+            --kmoddir /tmp/wsl_out/lib/modules/ \
+            --add "kernel-modules" \
+            --add-drivers "$HV_DRIVERS hv_vmbus hv_netvsc hv_storvsc hv_utils hv_sock hv_balloon hv_kbd hv_mouse" \
+            --no-hostonly \
+            --no-hostonly-cmdline \
+            --install "lsmod modprobe insmod" \
+            --omit "network" \
+            initrd.img
+
       - name: Upload Final Artifact
         if: success()
         uses: actions/upload-artifact@v4
