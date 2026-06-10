@@ -116,11 +116,11 @@ jobs:
                RANLIB="gcc-ranlib-15" \
                WERROR=0 \
                KCFLAGS="$KCFLAGS" \
-               KBUILD_CFLAGS="$KBUILD_CFLAGS" \
                HOSTCFLAGS="$HOSTCFLAGS" \
-               KBUILD_HOSTCFLAGS="$HOSTCFLAGS" \
                USERCFLAGS="$USERCFLAGS" \
+               EXTRA_CFLAGS="-w -Wno-error" \
                -j$(nproc)
+
 
       - name: Process and Package All Artifacts
         run: |
