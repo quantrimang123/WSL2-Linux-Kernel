@@ -21,14 +21,15 @@ jobs:
         run: |
 
           pacman -Syu --noconfirm
-          packages=(git gcc base-devel bc bison flex pahole libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
+          packages=(git gcc base-devel bc bison bzip2 tar flex pahole libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
           for pkg in "${packages[@]}"; do pacman -S --noconfirm "$pkg"; done
           
-          curl -O https://archive.archlinux.org/packages/g/gcc15/gcc15-15.2.1+r934+gbcd3e3ff5aa7-1-x86_64.pkg.tar.zst
-          pacman -U --noconfirm gcc15-15.2.1+r934+gbcd3e3ff5aa7-1-x86_64.pkg.tar.zst
+          mkdir -p /opt/gcc-13
+          curl -L https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--glibc--bleeding-edge-2023.08-1.tar.bz2 | tar -xjC /opt/gcc-13 --strip-components=1
+          export PATH="/opt/gcc-13/bin:$PATH"
           
           echo "Phiên bản gcc là:"
-          gcc-15 --version
+          x86_64-buildroot-linux-gnu-gcc --version
           echo "Phiên bản pahole là :"
           pahole --version
           
