@@ -102,13 +102,39 @@ jobs:
           make olddefconfig
           make prepare
           
-          make ARCH=x86_64 \
-               CROSS_COMPILE=$CROSS_COMPILE \
-               CC="$CC" \
-               HOSTCC=gcc \
+          make ARCH=x86_64 CROSS_COMPILE=$CROSS_COMPILE CC="$CC" HOSTCC=gcc \
                HOSTCFLAGS="-Wno-error=discarded-qualifiers -Wno-error=maybe-uninitialized" \
-               KCFLAGS="-Wno-error=discarded-qualifiers" \
-               -j$(nproc)
+               KCFLAGS="-Wno-error=discarded-qualifiers" -j$(nproc)
+               
+               export KVER=$(make kernelrelease)
+               echo "Kernel version: $KVER"
+               echo "KVER=$KVER" >> $GITHUB_ENV
+               
+          make ARCH=x86_64 CROSS_COMPILE=$CROSS_COMPILE INSTALL_MOD_PATH=/tmp/wsl_out modules_install
+          
+          depmod -b /tmp/wsl_out "$KVER"
+          
+          echo "--- Kiem tra cau truc thu muc modules ---"
+          ls -R "/tmp/wsl_out/lib/modules/$KVER"
+          echo "--- Kiem tra su ton tai cua driver thiet yeu ---"
+          if find "/tmp/wsl_out/lib/modules/$KVER" -name "hv_vmbus.ko" | grep -q .; then
+              echo "SUCCESS: Tim thay hv_vmbus.ko"
+          else
+              echo "ERROR: Khong tim thay hv_vmbus.ko! Xem lai buoc modules_install."
+              exit 1
+          fi
+          echo "--- Kiem tra cau truc thu muc modules ---"
+          ls -R /tmp/wsl_out/lib/modules/
+
+          echo "--- Kiem tra su ton tai cua cac driver thiet yeu ---"
+          find /tmp/wsl_out/lib/modules/"$KVER" -name "hv_vmbus.ko"
+
+          echo "--- Kiem tra file depmod (metadata) ---"
+          if [ -f /tmp/wsl_out/lib/modules/"$KVER"/modules.dep ]; then
+              echo "OK: modules.dep da ton tai."
+          else
+              echo "CANH BAO: Khong thay file modules.dep! Dracut se khong tim thay gi ca."
+          fi
       - name: Process and Package All Artifacts
         run: |
           cd WSL2-Linux-Kernel
@@ -118,9 +144,8 @@ jobs:
           cp vmlinux /tmp/wsl_out/vmlinux
           cp System.map /tmp/wsl_out/System.map
           cp .config /tmp/wsl_out/config.bak
-
+          
           mkdir -p /tmp/wsl_out/lib/modules
-          make INSTALL_MOD_PATH=/tmp/wsl_out modules_install
           
           if [ -d "firmware" ]; then
               mkdir -p /tmp/wsl_out/lib/firmware
@@ -142,23 +167,21 @@ jobs:
           df -h
           ls -lh /tmp/wsl_out/
           
+          mkdir -p /tmp/wsl_out/boot
+          cp /tmp/wsl_out/bzImage /tmp/wsl_out/boot/vmlinuz-$KVER
       - name: Create Initrd (Hyper-V Safe)
         run: |
-          KVER=$(cd /tmp/wsl_out/lib/modules && ls -d */ | cut -f1 -d'/')
+          export KVER="${{ env.KVER }}"
           
-          if [ -z "$KVER" ]; then
-              echo "Lỗi: Không tìm thấy thư mục module nào!"
-              exit 1
-          fi
+          depmod -b /tmp/wsl_out $KVER
           
           HV_DRIVERS=$(find /tmp/wsl_out/lib/modules/"$KVER"/kernel/drivers/hv/ -name "*.ko" -exec basename {} .ko \; 2>/dev/null | tr '\n' ' ')
           
           cd /tmp/wsl_out
-                    
-          dracut --verbose --force \
+
+          DRACUT_KMODDIR_OVERRIDE=1 DRACUT_NO_KERNEL_ON_HOST=1 dracut --verbose --debug --force \
             --kver "$KVER" \
-            --kmoddir /tmp/wsl_out/lib/modules/ \
-            --add "kernel-modules" \
+            --kmoddir /tmp/wsl_out/lib/modules \
             --add-drivers "$HV_DRIVERS hv_vmbus hv_netvsc hv_storvsc hv_utils hv_sock hv_balloon hv_kbd hv_mouse" \
             --no-hostonly \
             --no-hostonly-cmdline \
