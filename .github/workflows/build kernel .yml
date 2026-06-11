@@ -50,7 +50,7 @@ jobs:
           restore-keys: ${{ runner.os }}-kernel-k501lb-
       - name: Build Kernel
         run: |
-          git clone --depth 1 https://github.com/microsoft/WSL2-Linux-Kernel.git .
+          git clone --depth 1 https://github.com/microsoft/WSL2-Linux-Kernel.git 
           cd WSL2-Linux-Kernel
           
           echo "Patching libbpf for GCC 14..."
