@@ -1,0 +1,194 @@
+name: Build Custom WSL2 Kernel
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    timeout-minutes: 333
+    env:
+      CCACHE_DIR: /tmp/ccache
+    steps:
+      - name: Checkout My Config Repo
+        uses: actions/checkout@v4
+        with:
+          repository: quantrimang123/WSL2-Linux-Kernel
+          path: my_config_folder 
+          token: ${{ secrets.GH_PAT }}
+          
+      - name: Install Dependencies
+        run: |
+
+          pacman -Syu --noconfirm
+          packages=(git gcc base-devel bc bison bzip2 tar flex pahole libelf elfutils openssl zstd kmod cpio gawk  llvm clang lld ccache patch curl pigz xz lz4 linux-headers glibc gcc-libs zlib perl python python-pip findutils grep sed coreutils util-linux linux-firmware procps-ng iproute2 dracut)
+          for pkg in "${packages[@]}"; do pacman -S --noconfirm "$pkg"; done
+          
+          mkdir -p /opt/gcc-14
+          curl -L https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--glibc--stable-2025.08-1.tar.xz | tar -xJC /opt/gcc-14 --strip-components=1
+          
+          echo "/opt/gcc-14/bin" >> $GITHUB_PATH
+          export PATH="/opt/gcc-14/bin:$PATH"
+          
+          if[ ! -f /opt/gcc-14/bin/x86_64-buildroot-linux-gnu-gcc ] ; then
+              echo "LỖI: Không tìm thấy compiler trong /opt/gcc-14/bin!"
+              ls -R /opt/gcc-14/bin
+              exit 1
+          fi
+          
+          echo "Phiên bản gcc là:"
+          x86_64-buildroot-linux-gnu-gcc --version
+          echo "Phiên bản pahole là :"
+          pahole --version
+          
+      - name: Setup ccache
+        run: |
+          export PATH="/usr/lib/ccache/bin:$PATH"
+          ccache --version
+          mkdir -p /tmp/ccache
+          echo "CCACHE_DIR=/tmp/ccache" >> $GITHUB_ENV
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/ccache
+          key: ${{ runner.os }}-kernel-k501lb-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-kernel-k501lb-
+      - name: Build Kernel
+        run: |
+          git clone --depth=1 -b linux-msft-wsl-6.12.y https://github.com/microsoft/WSL2-Linux-Kernel.git
+          cd WSL2-Linux-Kernel
+          
+          echo "Patching libbpf for GCC 14..."
+          sed -i 's/next_path = strchr(s, \x27:\x27);/next_path = (char *)strchr(s, \x27:\x27);/' tools/lib/bpf/libbpf.c
+          
+          echo "Phiên bản Kernel hiện tại là:"
+          make kernelversion
+          
+          export PATH="/opt/gcc-14/bin:$PATH"
+          export CROSS_COMPILE="x86_64-buildroot-linux-gnu-"
+          export CC="ccache ${CROSS_COMPILE}gcc"
+          export CXX="ccache ${CROSS_COMPILE}g++"
+          export AR="${CROSS_COMPILE}ar"
+          export NM="${CROSS_COMPILE}nm"
+          export RANLIB="${CROSS_COMPILE}ranlib"
+          export PAHOLE_FLAGS="--btf_features=encode_force,var,float,enum64"
+          
+          unset LLVM
+          unset LLVM_IAS
+          unset LD
+          
+          make mrproper
+          cp Microsoft/config-wsl .config
+          
+          if [ ! -f .config ]; then
+              echo ".config không tồn tại, kiểm tra lại lệnh cấu hình!"
+              exit 1
+          fi
+          
+          if [ -d "Microsoft" ]; then
+              make KCONFIG_CONFIG=Microsoft/config-wsl kvm_guest.config
+              cp Microsoft/config-wsl .config
+          fi
+          
+          ./scripts/kconfig/merge_config.sh -m .config $GITHUB_WORKSPACE/my_config_folder/my_config.cfg
+          ./scripts/config --enable CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
+          ./scripts/config --disable CONFIG_GCC_PLUGIN_RANDSTRUCT
+          ./scripts/config --enable CONFIG_DEBUG_INFO_BTF
+          ./scripts/config --enable CONFIG_DEBUG_INFO_BTF_MODULES
+          ./scripts/config --enable CONFIG_DEBUG_INFO
+
+          make olddefconfig
+          make prepare
+          
+          make ARCH=x86_64 CROSS_COMPILE=$CROSS_COMPILE CC="$CC" HOSTCC=gcc \
+               HOSTCFLAGS="-Wno-error=discarded-qualifiers -Wno-error=maybe-uninitialized" \
+               KCFLAGS="-Wno-error=discarded-qualifiers" -j$(nproc)
+               
+               export KVER=$(make kernelrelease)
+               echo "Kernel version: $KVER"
+               echo "KVER=$KVER" >> $GITHUB_ENV
+               
+          make ARCH=x86_64 CROSS_COMPILE=$CROSS_COMPILE INSTALL_MOD_PATH=/tmp/wsl_out modules_install
+          
+          depmod -b /tmp/wsl_out "$KVER"
+          
+          echo "--- Kiem tra cau truc thu muc modules ---"
+          ls -R "/tmp/wsl_out/lib/modules/$KVER"
+      - name: Process and Package All Artifacts
+        run: |
+          cd WSL2-Linux-Kernel
+          set -e
+          mkdir -p /tmp/wsl_out
+          cp arch/x86/boot/bzImage /tmp/wsl_out/bzImage
+          cp vmlinux /tmp/wsl_out/vmlinux
+          cp System.map /tmp/wsl_out/System.map
+          cp .config /tmp/wsl_out/config.bak
+          
+          mkdir -p /tmp/wsl_out/lib/modules
+          
+          if [ -d "firmware" ]; then
+              mkdir -p /tmp/wsl_out/lib/firmware
+              cp -r firmware/* /tmp/wsl_out/lib/firmware/
+          fi
+
+          find /tmp/wsl_out/lib/modules -name "*.ko" -print0 | xargs -0 -P $(nproc) -I {} strip --strip-debug {}
+
+          if [ -d "/tmp/wsl_out/lib" ]; then
+              cd /tmp/wsl_out
+              tar -cf - lib/ | pigz -9 -p$(nproc) > modules_firmware.tar.gz
+          fi
+          
+          pigz -9 -p$(nproc) /tmp/wsl_out/vmlinux
+          
+          find /tmp/wsl_out -name "build" -type l -delete
+          find /tmp/wsl_out -name "source" -type l -delete
+
+          df -h
+          ls -lh /tmp/wsl_out/
+          
+          mkdir -p /tmp/wsl_out/boot
+          cp /tmp/wsl_out/bzImage /tmp/wsl_out/boot/vmlinuz-$KVER
+      - name: Create Initrd (Hyper-V Safe)
+        run: |
+          cd /tmp/wsl_out
+          echo "KVER=$KVER" >> $GITHUB_ENV
+          mkdir -p /lib/modules/"$KVER"
+          cp -a /tmp/wsl_out/lib/modules/"$KVER"/. /lib/modules/"$KVER"/
+          ls -la /lib/modules/"$KVER"/modules.dep || { echo "LỖI: Copy module thất bại!"; exit 1; } 
+          HV_DRIVERS=$(find /tmp/wsl_out/lib/modules/"$KVER"/kernel/drivers/hv/ -name "*.ko" -exec basename {} .ko \; 2>/dev/null | tr '\n' ' ')
+          if [ -z "$HV_DRIVERS" ]; then
+              echo "CẢNH BÁO: Không tìm thấy driver tự động, sử dụng bộ mặc định!"
+              HV_DRIVERS="hv_vmbus hv_netvsc hv_storvsc hv_utils hv_sock hv_balloon hv_kbd hv_mouse"
+          fi
+          echo "Danh sách HV Drivers sẽ nạp: $HV_DRIVERS"
+          
+          DRACUT_KMODDIR_OVERRIDE=1 DRACUT_NO_KERNEL_ON_HOST=1 dracut --verbose --debug --force \
+             --kver "$KVER" \
+             --add-drivers "$HV_DRIVERS hv_vmbus hv_netvsc hv_storvsc hv_utils hv_sock hv_balloon hv_kbd hv_mouse" \
+             --no-hostonly \
+             --no-hostonly-cmdline \
+             --install "lsmod modprobe insmod" \
+             /tmp/wsl_out/initrd.img
+             
+          rm -rf /lib/modules/"$KVER"
+      - name: Verify Kernel Artifacts
+        run: |
+          echo "Kiểm tra sự tồn tại của các file quan trọng..."
+          [ -f /tmp/wsl_out/bzImage ] || exit 1
+          [ -f /tmp/wsl_out/initrd.img ] || exit 1
+          echo "Build thành công và sẵn sàng để deploy!"
+          
+      - name: Upload Final Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WSL2-Kernel-6.12-Custom
+          path: |
+            /tmp/wsl_out/bzImage
+            /tmp/wsl_out/initrd.img
+            /tmp/wsl_out/modules_firmware.tar.gz
+            /tmp/wsl_out/System.map
+            /tmp/wsl_out/vmlinux.gz
+            /tmp/wsl_out/config.bak
+          retention-days: 3
