@@ -114,6 +114,8 @@ jobs:
           
           depmod -b /tmp/wsl_out "$KVER"
           
+          echo "--- Kiem tra cau truc thu muc modules ---"
+          ls -R "/tmp/wsl_out/lib/modules/$KVER"
       - name: Process and Package All Artifacts
         run: |
           cd WSL2-Linux-Kernel
@@ -150,23 +152,27 @@ jobs:
           cp /tmp/wsl_out/bzImage /tmp/wsl_out/boot/vmlinuz-$KVER
       - name: Create Initrd (Hyper-V Safe)
         run: |
-          echo "KVER=$KVER" >> $GITHUB_ENV
-          
-          depmod -b /tmp/wsl_out $KVER
-          
-          HV_DRIVERS=$(find /tmp/wsl_out/lib/modules/"$KVER"/kernel/drivers/hv/ -name "*.ko" -exec basename {} .ko \; 2>/dev/null | tr '\n' ' ')
-          
           cd /tmp/wsl_out
-
+          echo "KVER=$KVER" >> $GITHUB_ENV
+          mkdir -p /lib/modules/"$KVER"
+          cp -a /tmp/wsl_out/lib/modules/"$KVER"/. /lib/modules/"$KVER"/
+          ls -la /lib/modules/"$KVER"/modules.dep || { echo "LỖI: Copy module thất bại!"; exit 1; } 
+          HV_DRIVERS=$(find /tmp/wsl_out/lib/modules/"$KVER"/kernel/drivers/hv/ -name "*.ko" -exec basename {} .ko \; 2>/dev/null | tr '\n' ' ')
+          if [ -z "$HV_DRIVERS" ]; then
+              echo "CẢNH BÁO: Không tìm thấy driver tự động, sử dụng bộ mặc định!"
+              HV_DRIVERS="hv_vmbus hv_netvsc hv_storvsc hv_utils hv_sock hv_balloon hv_kbd hv_mouse"
+          fi
+          echo "Danh sách HV Drivers sẽ nạp: $HV_DRIVERS"
+          
           DRACUT_KMODDIR_OVERRIDE=1 DRACUT_NO_KERNEL_ON_HOST=1 dracut --verbose --debug --force \
-            --kver "$KVER" \
-            --kmoddir /tmp/wsl_out/lib/modules \
-            --add-drivers "$HV_DRIVERS hv_vmbus hv_netvsc hv_storvsc hv_utils hv_sock hv_balloon hv_kbd hv_mouse" \
-            --no-hostonly \
-            --no-hostonly-cmdline \
-            --install "lsmod modprobe insmod" \
-            --omit "network" \
-            initrd.img
+             --kver "$KVER" \
+             --add-drivers "$HV_DRIVERS hv_vmbus hv_netvsc hv_storvsc hv_utils hv_sock hv_balloon hv_kbd hv_mouse" \
+             --no-hostonly \
+             --no-hostonly-cmdline \
+             --install "lsmod modprobe insmod" \
+             /tmp/wsl_out/initrd.img
+             
+          rm -rf /lib/modules/"$KVER"
       - name: Verify Kernel Artifacts
         run: |
           echo "Kiểm tra sự tồn tại của các file quan trọng..."
