@@ -29,13 +29,7 @@ jobs:
           
           echo "/opt/gcc-14/bin" >> $GITHUB_PATH
           export PATH="/opt/gcc-14/bin:$PATH"
-          
-          if[ ! -f /opt/gcc-14/bin/x86_64-buildroot-linux-gnu-gcc ] ; then
-              echo "LỖI: Không tìm thấy compiler trong /opt/gcc-14/bin!"
-              ls -R /opt/gcc-14/bin
-              exit 1
-          fi
-          
+              
           echo "Phiên bản gcc là:"
           x86_64-buildroot-linux-gnu-gcc --version
           echo "Phiên bản pahole là :"
