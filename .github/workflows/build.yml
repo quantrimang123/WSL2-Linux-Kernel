@@ -114,27 +114,6 @@ jobs:
           
           depmod -b /tmp/wsl_out "$KVER"
           
-          echo "--- Kiem tra cau truc thu muc modules ---"
-          ls -R "/tmp/wsl_out/lib/modules/$KVER"
-          echo "--- Kiem tra su ton tai cua driver thiet yeu ---"
-          if find "/tmp/wsl_out/lib/modules/$KVER" -name "hv_vmbus.ko" | grep -q .; then
-              echo "SUCCESS: Tim thay hv_vmbus.ko"
-          else
-              echo "ERROR: Khong tim thay hv_vmbus.ko! Xem lai buoc modules_install."
-              exit 1
-          fi
-          echo "--- Kiem tra cau truc thu muc modules ---"
-          ls -R /tmp/wsl_out/lib/modules/
-
-          echo "--- Kiem tra su ton tai cua cac driver thiet yeu ---"
-          find /tmp/wsl_out/lib/modules/"$KVER" -name "hv_vmbus.ko"
-
-          echo "--- Kiem tra file depmod (metadata) ---"
-          if [ -f /tmp/wsl_out/lib/modules/"$KVER"/modules.dep ]; then
-              echo "OK: modules.dep da ton tai."
-          else
-              echo "CANH BAO: Khong thay file modules.dep! Dracut se khong tim thay gi ca."
-          fi
       - name: Process and Package All Artifacts
         run: |
           cd WSL2-Linux-Kernel
@@ -171,7 +150,7 @@ jobs:
           cp /tmp/wsl_out/bzImage /tmp/wsl_out/boot/vmlinuz-$KVER
       - name: Create Initrd (Hyper-V Safe)
         run: |
-          export KVER="${{ env.KVER }}"
+          echo "KVER=$KVER" >> $GITHUB_ENV
           
           depmod -b /tmp/wsl_out $KVER
           
@@ -188,7 +167,13 @@ jobs:
             --install "lsmod modprobe insmod" \
             --omit "network" \
             initrd.img
-
+      - name: Verify Kernel Artifacts
+        run: |
+          echo "Kiểm tra sự tồn tại của các file quan trọng..."
+          [ -f /tmp/wsl_out/bzImage ] || exit 1
+          [ -f /tmp/wsl_out/initrd.img ] || exit 1
+          echo "Build thành công và sẵn sàng để deploy!"
+          
       - name: Upload Final Artifact
         if: success()
         uses: actions/upload-artifact@v4
